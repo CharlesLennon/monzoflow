@@ -53,6 +53,13 @@ fun VisualNodeCanvas(
     var connectingFromNodeId by remember { mutableStateOf<String?>(null) }
     var connectingFromPortId by remember { mutableStateOf<String?>(null) }
 
+    // Live interactive wire drag state
+    var draggingWireSourceNodeId by remember { mutableStateOf<String?>(null) }
+    var draggingWireSourcePortId by remember { mutableStateOf<String?>(null) }
+    var liveWireStartScreen by remember { mutableStateOf<Offset?>(null) }
+    var liveWireEndScreen by remember { mutableStateOf<Offset?>(null) }
+    var hoveredTargetNodeId by remember { mutableStateOf<String?>(null) }
+
     // In-memory node positions for instant 60/120fps dragging with zero database disk I/O lag
     val nodePositions = remember { mutableStateMapOf<String, Offset>() }
 
@@ -144,6 +151,61 @@ fun VisualNodeCanvas(
                     )
                 }
             }
+
+            // 1b. Live Interactive Wire Drag Rendering
+            val startPt = liveWireStartScreen
+            val rawEndPt = liveWireEndScreen
+            if (startPt != null && rawEndPt != null) {
+                // If a target node is hovered, snap to its input port
+                val endPt = if (hoveredTargetNodeId != null) {
+                    val targetNode = nodeMap[hoveredTargetNodeId]
+                    if (targetNode != null) {
+                        val targetPos = nodePositions[targetNode.id] ?: Offset(targetNode.posX, targetNode.posY)
+                        val snapped = WireConnectionEngine.calculateInputPortPos(
+                            nodeX = targetPos.x,
+                            nodeY = targetPos.y,
+                            cardWidth = 220f,
+                            cardHeight = 95f,
+                            panX = panX,
+                            panY = panY,
+                            scale = scale
+                        )
+                        Offset(snapped.x, snapped.y)
+                    } else {
+                        rawEndPt
+                    }
+                } else {
+                    rawEndPt
+                }
+
+                val wireColor = if (hoveredTargetNodeId != null) MintGreen else MonzoCoral
+
+                ConnectionWire.drawWire(
+                    drawScope = this,
+                    start = startPt,
+                    end = endPt,
+                    color = wireColor,
+                    pulseProgress = pulseProgress,
+                    strokeWidth = 3.5f * scale
+                )
+
+                // Glowing socket cursor indicator at dragged position
+                drawCircle(
+                    color = wireColor.copy(alpha = 0.4f),
+                    radius = 14f * scale,
+                    center = endPt
+                )
+                drawCircle(
+                    color = wireColor,
+                    radius = 8f * scale,
+                    center = endPt
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 4f * scale,
+                    center = endPt
+                )
+            }
         }
 
         // 2. Interactive Node Cards Layer
@@ -153,8 +215,10 @@ fun VisualNodeCanvas(
                 val screenX = ((currentPos.x * scale) + panX).roundToInt()
                 val screenY = ((currentPos.y * scale) + panY).roundToInt()
 
-                val isSource = connectingFromNodeId == node.id
-                val isTarget = connectingFromNodeId != null && connectingFromNodeId != node.id
+                val isSource = connectingFromNodeId == node.id || draggingWireSourceNodeId == node.id
+                val isTarget = (connectingFromNodeId != null && connectingFromNodeId != node.id) ||
+                    hoveredTargetNodeId == node.id ||
+                    (draggingWireSourceNodeId != null && draggingWireSourceNodeId != node.id && node.inputs.isNotEmpty())
 
                 NodeCard(
                     node = node,
@@ -181,6 +245,77 @@ fun VisualNodeCanvas(
                         connectingFromNodeId = node.id
                         connectingFromPortId = portId
                     },
+                    onWireDragStart = { portId, _ ->
+                        val pos = nodePositions[node.id] ?: Offset(node.posX, node.posY)
+                        val portPos = WireConnectionEngine.calculateOutputPortPos(
+                            nodeX = pos.x,
+                            nodeY = pos.y,
+                            cardWidth = 220f,
+                            cardHeight = 95f,
+                            panX = panX,
+                            panY = panY,
+                            scale = scale
+                        )
+                        draggingWireSourceNodeId = node.id
+                        draggingWireSourcePortId = portId
+                        liveWireStartScreen = Offset(portPos.x, portPos.y)
+                        liveWireEndScreen = Offset(portPos.x, portPos.y)
+                        hoveredTargetNodeId = null
+                    },
+                    onWireDrag = { dragDelta ->
+                        liveWireEndScreen?.let { current ->
+                            val updated = Offset(current.x + dragDelta.x, current.y + dragDelta.y)
+                            liveWireEndScreen = updated
+
+                            val canvasPt = WireConnectionEngine.screenToCanvas(
+                                screenPoint = WirePoint(updated.x, updated.y),
+                                panX = panX,
+                                panY = panY,
+                                scale = scale
+                            )
+                            val hit = WireConnectionEngine.hitTestTargetNode(
+                                canvasPoint = canvasPt,
+                                nodes = nodes,
+                                nodePositions = nodePositions.mapValues { WirePoint(it.value.x, it.value.y) },
+                                sourceNodeId = node.id,
+                                cardWidth = 220f,
+                                cardHeight = 95f,
+                                hitMargin = 32f
+                            )
+                            hoveredTargetNodeId = hit?.id
+                        }
+                    },
+                    onWireDragEnd = {
+                        val srcId = draggingWireSourceNodeId
+                        val srcPort = draggingWireSourcePortId ?: "out_default"
+                        val tgtId = hoveredTargetNodeId
+
+                        if (srcId != null && tgtId != null) {
+                            val validation = WireConnectionEngine.validateConnection(
+                                fromNodeId = srcId,
+                                toNodeId = tgtId,
+                                existingConnections = connections,
+                                nodes = nodes
+                            )
+                            if (validation is ConnectionValidationResult.Valid) {
+                                val toPortId = validation.toNode.inputs.firstOrNull()?.id ?: "in_default"
+                                onConnectNodes(srcId, srcPort, tgtId, toPortId)
+                            }
+                        }
+
+                        draggingWireSourceNodeId = null
+                        draggingWireSourcePortId = null
+                        liveWireStartScreen = null
+                        liveWireEndScreen = null
+                        hoveredTargetNodeId = null
+                    },
+                    onWireDragCancel = {
+                        draggingWireSourceNodeId = null
+                        draggingWireSourcePortId = null
+                        liveWireStartScreen = null
+                        liveWireEndScreen = null
+                        hoveredTargetNodeId = null
+                    },
                     onDragStart = {
                         draggingNodeId = node.id
                         selectedNodeId = node.id
@@ -198,12 +333,6 @@ fun VisualNodeCanvas(
                         draggingNodeId = null
                         if (finalPos != null) {
                             onNodeMoved(node.id, finalPos.x, finalPos.y)
-                        }
-                    },
-                    onPortDragStart = { portId, isInput ->
-                        if (!isInput) {
-                            connectingFromNodeId = node.id
-                            connectingFromPortId = portId
                         }
                     },
                     modifier = Modifier.offset { IntOffset(screenX, screenY) }
@@ -271,8 +400,9 @@ fun VisualNodeCanvas(
         }
 
         // 4. Connecting Helper Banner (Active Wire Mode) - Positioned at Top for Visibility
-        if (connectingFromNodeId != null) {
-            val sourceNode = nodeMap[connectingFromNodeId]
+        val activeWireSourceId = connectingFromNodeId ?: draggingWireSourceNodeId
+        if (activeWireSourceId != null) {
+            val sourceNode = nodeMap[activeWireSourceId]
             Surface(
                 color = SurfaceElevated.copy(alpha = 0.96f),
                 shape = RoundedCornerShape(12.dp),
@@ -295,14 +425,14 @@ fun VisualNodeCanvas(
                     )
                     Column {
                         Text(
-                            text = "WIRING MODE ACTIVE",
+                            text = if (draggingWireSourceNodeId != null) "DRAGGING WIRE" else "WIRING MODE ACTIVE",
                             color = MintGreen,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            text = "From: ${sourceNode?.title ?: "Node"} ➔ Tap destination node to link",
+                            text = "From: ${sourceNode?.title ?: "Node"} ➔ Drag or tap destination node to link",
                             color = TextPrimary,
                             fontSize = 10.sp
                         )
@@ -311,6 +441,11 @@ fun VisualNodeCanvas(
                         onClick = {
                             connectingFromNodeId = null
                             connectingFromPortId = null
+                            draggingWireSourceNodeId = null
+                            draggingWireSourcePortId = null
+                            liveWireStartScreen = null
+                            liveWireEndScreen = null
+                            hoveredTargetNodeId = null
                         },
                         modifier = Modifier.size(24.dp)
                     ) {

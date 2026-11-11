@@ -3,6 +3,8 @@ package com.monzoflow.app.ui.canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -23,9 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -50,7 +55,10 @@ fun NodeCard(
     onDrag: (dragAmountX: Float, dragAmountY: Float) -> Unit,
     onDragEnd: () -> Unit = {},
     onStartWiring: (portId: String) -> Unit = {},
-    onPortDragStart: (portId: String, isInput: Boolean) -> Unit = { _, _ -> },
+    onWireDragStart: (portId: String, offset: Offset) -> Unit = { _, _ -> },
+    onWireDrag: (dragAmount: Offset) -> Unit = {},
+    onWireDragEnd: () -> Unit = {},
+    onWireDragCancel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val categoryColor = when (node.category) {
@@ -309,8 +317,35 @@ fun NodeCard(
                         shape = RoundedCornerShape(12.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, if (isConnectingSource) MonzoCoral else categoryColor),
                         modifier = Modifier.pointerInput(outPort.id) {
-                            detectTapGestures {
-                                onStartWiring(outPort.id)
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                var isWireDrag = false
+                                var totalDrag = Offset.Zero
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (change.changedToUp()) {
+                                        change.consume()
+                                        if (!isWireDrag) {
+                                            onStartWiring(outPort.id)
+                                        } else {
+                                            onWireDragEnd()
+                                        }
+                                        break
+                                    }
+                                    val delta = change.positionChange()
+                                    totalDrag += delta
+                                    if (!isWireDrag) {
+                                        if (totalDrag.getDistance() > viewConfiguration.touchSlop) {
+                                            isWireDrag = true
+                                            change.consume()
+                                            onWireDragStart(outPort.id, down.position)
+                                        }
+                                    } else {
+                                        change.consume()
+                                        onWireDrag(delta)
+                                    }
+                                }
                             }
                         }
                     ) {

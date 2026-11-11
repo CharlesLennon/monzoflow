@@ -148,5 +148,49 @@ data class FlowNode(
                 else -> listOf(NodePort("out_default", "Next", isInput = false))
             }
         }
+
+        fun create(
+            type: NodeType,
+            posX: Float,
+            posY: Float,
+            workflowId: String = "default_wf"
+        ): FlowNode {
+            val cat = when (type) {
+                NodeType.TRIGGER_WEBHOOK,
+                NodeType.TRIGGER_MONEY_RECEIVED,
+                NodeType.TRIGGER_CARD_SPEND,
+                NodeType.TRIGGER_TRANSFER_OUT,
+                NodeType.TRIGGER_DIRECT_DEBIT,
+                NodeType.TRIGGER_POT_MOVE,
+                NodeType.TRIGGER_DECLINE,
+                NodeType.TRIGGER_FOREIGN_CURRENCY,
+                NodeType.TRIGGER_LOW_BALANCE,
+                NodeType.TRIGGER_SIMULATOR,
+                NodeType.TRIGGER_POLL,
+                NodeType.TRIGGER_MANUAL -> NodeCategory.TRIGGER
+                NodeType.MONZO_PUSH_FEED,
+                NodeType.MONZO_ANNOTATE,
+                NodeType.MONZO_POT_DEPOSIT,
+                NodeType.MONZO_POT_WITHDRAW,
+                NodeType.MONZO_GET_BALANCE -> NodeCategory.MONZO_ACTION
+                NodeType.LOGIC_FILTER,
+                NodeType.LOGIC_SPLIT,
+                NodeType.LOGIC_DELAY -> NodeCategory.LOGIC
+                NodeType.TRANSFORM_ROUNDUP,
+                NodeType.TRANSFORM_PERCENTAGE,
+                NodeType.TRANSFORM_TEMPLATE -> NodeCategory.TRANSFORM
+                NodeType.EXTERNAL_HTTP_REQUEST -> NodeCategory.EXTERNAL
+                NodeType.NOTIFY_ANDROID -> NodeCategory.NOTIFICATION
+            }
+            return FlowNode(
+                id = "node_${java.util.UUID.randomUUID().toString().take(8)}",
+                workflowId = workflowId,
+                type = type,
+                category = cat,
+                title = type.name.replace("TRIGGER_", "").replace("MONZO_", "").replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() },
+                posX = posX,
+                posY = posY
+            )
+        }
     }
 }
