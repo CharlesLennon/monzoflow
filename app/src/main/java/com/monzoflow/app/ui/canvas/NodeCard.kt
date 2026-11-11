@@ -1,0 +1,262 @@
+package com.monzoflow.app.ui.canvas
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.monzoflow.app.data.model.FlowNode
+import com.monzoflow.app.data.model.NodeCategory
+import com.monzoflow.app.data.model.NodeType
+import com.monzoflow.app.theme.*
+import kotlin.math.roundToInt
+
+@Composable
+fun NodeCard(
+    node: FlowNode,
+    isSelected: Boolean,
+    onTap: () -> Unit,
+    onDrag: (dragAmountX: Float, dragAmountY: Float) -> Unit,
+    onPortDragStart: (portId: String, isInput: Boolean) -> Unit = { _, _ -> },
+    modifier: Modifier = Modifier
+) {
+    val categoryColor = when (node.category) {
+        NodeCategory.TRIGGER -> TriggerColor
+        NodeCategory.MONZO_ACTION -> MonzoCoral
+        NodeCategory.LOGIC -> LogicColor
+        NodeCategory.TRANSFORM -> TransformColor
+        NodeCategory.EXTERNAL -> ExternalColor
+        NodeCategory.NOTIFICATION -> OutputColor
+    }
+
+    val icon: ImageVector = when (node.type) {
+        NodeType.TRIGGER_WEBHOOK -> Icons.Default.CloudSync
+        NodeType.TRIGGER_SIMULATOR -> Icons.Default.Science
+        NodeType.TRIGGER_POLL -> Icons.Default.Schedule
+        NodeType.TRIGGER_MANUAL -> Icons.Default.PlayArrow
+        NodeType.MONZO_PUSH_FEED -> Icons.Default.DynamicFeed
+        NodeType.MONZO_ANNOTATE -> Icons.Default.Label
+        NodeType.MONZO_POT_DEPOSIT -> Icons.Default.Savings
+        NodeType.MONZO_POT_WITHDRAW -> Icons.Default.AccountBalanceWallet
+        NodeType.MONZO_GET_BALANCE -> Icons.Default.AccountBalance
+        NodeType.LOGIC_FILTER -> Icons.Default.FilterAlt
+        NodeType.LOGIC_SPLIT -> Icons.Default.CallSplit
+        NodeType.LOGIC_DELAY -> Icons.Default.HourglassEmpty
+        NodeType.TRANSFORM_ROUNDUP -> Icons.Default.PriceChange
+        NodeType.TRANSFORM_PERCENTAGE -> Icons.Default.Percent
+        NodeType.TRANSFORM_TEMPLATE -> Icons.Default.TextFields
+        NodeType.EXTERNAL_HTTP_REQUEST -> Icons.Default.Http
+        NodeType.NOTIFY_ANDROID -> Icons.Default.Notifications
+    }
+
+    Box(
+        modifier = modifier
+            .width(220.dp)
+            .shadow(elevation = if (isSelected) 10.dp else 4.dp, shape = RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceDark)
+            .border(
+                width = if (isSelected) 2.dp else 1.dp,
+                color = if (isSelected) categoryColor else SurfaceBorder,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .pointerInput(node.id) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount.x, dragAmount.y)
+                }
+            }
+            .clickable { onTap() }
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Header Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(categoryColor.copy(alpha = 0.18f))
+                    .border(
+                        width = 1.dp,
+                        color = categoryColor.copy(alpha = 0.35f),
+                        shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(categoryColor)
+                        .padding(3.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = CanvasBackground,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+
+                Text(
+                    text = node.category.name.replace("_", " "),
+                    color = categoryColor,
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 0.5.sp
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                // Status Ring
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(StatusSuccess)
+                )
+            }
+
+            // Node Body
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = node.title,
+                    color = TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Default
+                )
+
+                if (node.subtitle.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = node.subtitle,
+                        color = TextSecondary,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                // Config Details Badge
+                val configSummary = getConfigSummary(node)
+                if (configSummary.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        color = SurfaceCard,
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder.copy(alpha = 0.6f))
+                    ) {
+                        Text(
+                            text = configSummary,
+                            color = TextAccent,
+                            fontSize = 8.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            // Port Sockets Bar (Bottom)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Input Port (Left)
+                if (node.inputs.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.clickable { onPortDragStart(node.inputs.first().id, true) }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(TextAccent)
+                                .border(1.5.dp, CanvasBackground, CircleShape)
+                        )
+                        Text(
+                            text = "IN",
+                            color = TextMuted,
+                            fontSize = 8.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(1.dp))
+                }
+
+                // Output Port (Right)
+                if (node.outputs.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.clickable { onPortDragStart(node.outputs.first().id, false) }
+                    ) {
+                        Text(
+                            text = if (node.type == NodeType.LOGIC_FILTER) "TRUE" else "NEXT",
+                            color = TextMuted,
+                            fontSize = 8.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(categoryColor)
+                                .border(1.5.dp, CanvasBackground, CircleShape)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun getConfigSummary(node: FlowNode): String {
+    return when (node.type) {
+        NodeType.LOGIC_FILTER -> {
+            val cat = node.config.filterCategory.takeIf { it.isNotBlank() } ?: "all"
+            val amt = if (node.config.filterMinAmountPence > 0) "> £${node.config.filterMinAmountPence / 100}" else ""
+            "Cat: $cat $amt".trim()
+        }
+        NodeType.TRANSFORM_ROUNDUP -> "Round to £${node.config.roundUpTargetPence / 100}.00"
+        NodeType.TRANSFORM_PERCENTAGE -> "${node.config.potPercentage.toInt()}% Allocation"
+        NodeType.MONZO_PUSH_FEED -> node.config.feedTitleTemplate.take(24)
+        NodeType.MONZO_ANNOTATE -> node.config.annotateTags.take(24)
+        NodeType.MONZO_POT_DEPOSIT -> "Pot: ${node.config.potName.ifBlank { "Savings" }}"
+        NodeType.EXTERNAL_HTTP_REQUEST -> node.config.httpMethod + " " + node.config.httpUrl.take(18)
+        NodeType.NOTIFY_ANDROID -> "Alert: " + node.config.notifyTitle.take(18)
+        else -> ""
+    }
+}
