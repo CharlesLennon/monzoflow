@@ -19,25 +19,15 @@ class MonzoFlowApplication : Application() {
     val workflowExecutor: WorkflowExecutor by lazy {
         WorkflowExecutor(this, database, credentialManager, monzoClient)
     }
+    val updateManager: com.monzoflow.app.update.AppUpdateManager by lazy {
+        com.monzoflow.app.update.AppUpdateManager(this)
+    }
 
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
-
-        // Initialize default templates if first run
-        CoroutineScope(Dispatchers.IO).launch {
-            val existing = database.workflowDao().getActiveWorkflows()
-            if (existing.isEmpty()) {
-                val defaults = BuiltinTemplates.createDefaultWorkflows()
-                for ((wf, nodes, conns) in defaults) {
-                    database.workflowDao().insertWorkflow(wf)
-                    database.workflowDao().insertNodes(nodes)
-                    database.workflowDao().insertConnections(conns)
-                }
-                Timber.i("MonzoFlow default workflow templates seeded successfully.")
-            }
-        }
+        // Workflows are NOT prefilled on startup (clean canvas by user request).
     }
 }

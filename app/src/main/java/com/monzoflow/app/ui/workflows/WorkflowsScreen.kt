@@ -81,10 +81,78 @@ fun WorkflowsScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        if (workflows.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    color = SurfaceCard,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+                    modifier = Modifier.fillMaxWidth(0.9f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(MonzoCoral.copy(alpha = 0.20f))
+                                .border(1.dp, MonzoCoral, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = MonzoCoral, modifier = Modifier.size(24.dp))
+                        }
+
+                        Text(
+                            text = "NO WORKFLOWS CONFIGURED",
+                            color = MonzoCoral,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+
+                        Text(
+                            text = "Start with a clean canvas to design your custom Monzo financial automation pipelines.",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+
+                        Button(
+                            onClick = onCreateNewWorkflow,
+                            colors = ButtonDefaults.buttonColors(containerColor = MonzoCoral),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "CREATE FIRST WORKFLOW", fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        }
+
+                        OutlinedButton(
+                            onClick = onResetTemplates,
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(imageVector = Icons.Default.AutoAwesome, contentDescription = null, tint = TextAccent, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "OR IMPORT STARTER TEMPLATES", color = TextAccent, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
             items(workflows) { wf ->
                 Surface(
                     color = SurfaceCard,

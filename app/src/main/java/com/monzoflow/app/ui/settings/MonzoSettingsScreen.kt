@@ -42,11 +42,13 @@ import java.net.NetworkInterface
 @Composable
 fun MonzoSettingsScreen(
     credentialManager: SecureCredentialManager,
-    monzoClient: MonzoApiClient
+    monzoClient: MonzoApiClient,
+    updateManager: com.monzoflow.app.update.AppUpdateManager? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
+    val updateState = updateManager?.updateState?.collectAsState()?.value
 
     var authMode by remember { mutableStateOf(credentialManager.authMode) }
     var patText by remember { mutableStateOf(credentialManager.personalAccessToken) }
@@ -396,6 +398,55 @@ fun MonzoSettingsScreen(
                     color = TextSecondary,
                     fontSize = 8.5.sp
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // 4. In-App Auto Updater (Like ReconDrive)
+        Surface(
+            color = SurfaceCard,
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "APP UPDATES & RELEASES",
+                            color = MonzoCoral,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "MonzoFlow Version: v${updateManager?.currentVersionName ?: "1.0.1"}",
+                            color = TextSecondary,
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Button(
+                        onClick = { updateManager?.checkForUpdates(isManual = true) },
+                        colors = ButtonDefaults.buttonColors(containerColor = MonzoCoral),
+                        shape = RoundedCornerShape(6.dp),
+                        enabled = updateState !is com.monzoflow.app.update.UpdateState.Checking
+                    ) {
+                        if (updateState is com.monzoflow.app.update.UpdateState.Checking) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(12.dp))
+                        } else {
+                            Icon(imageVector = Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "CHECK FOR UPDATES", fontSize = 8.5.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
             }
         }
     }

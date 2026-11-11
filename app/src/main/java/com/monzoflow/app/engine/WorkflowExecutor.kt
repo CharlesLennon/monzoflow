@@ -60,10 +60,8 @@ class WorkflowExecutor(
 
         for (wf in activeWorkflows) {
             val nodes = database.workflowDao().getNodesSnapshot(wf.id)
-            val hasMatchingTrigger = nodes.any {
-                (it.type == NodeType.TRIGGER_WEBHOOK && source == "Webhook") ||
-                (it.type == NodeType.TRIGGER_SIMULATOR && source == "Simulator") ||
-                (it.type == NodeType.TRIGGER_MANUAL && source == "Manual")
+            val hasMatchingTrigger = nodes.any { node ->
+                matchesTrigger(node, transaction, source)
             }
 
             if (hasMatchingTrigger) {
@@ -106,13 +104,8 @@ class WorkflowExecutor(
         )
 
         // Find starting trigger node
-        val startNode = nodes.values.firstOrNull {
-            it.category == NodeCategory.TRIGGER && (
-                (it.type == NodeType.TRIGGER_WEBHOOK && source == "Webhook") ||
-                (it.type == NodeType.TRIGGER_SIMULATOR && source == "Simulator") ||
-                (it.type == NodeType.TRIGGER_MANUAL && source == "Manual") ||
-                (it.type == NodeType.TRIGGER_POLL && source == "Poller")
-            )
+        val startNode = nodes.values.firstOrNull { node ->
+            matchesTrigger(node, transaction, source)
         } ?: nodes.values.firstOrNull { it.category == NodeCategory.TRIGGER }
 
         if (startNode == null) {
@@ -448,6 +441,40 @@ class WorkflowExecutor(
             manager.notify(System.currentTimeMillis().toInt(), notification)
         } catch (e: Exception) {
             Timber.e(e, "Error showing system notification")
+        }
+    }
+
+    private fun matchesTrigger(node: FlowNode, transaction: MonzoTransaction, source: String): Boolean {
+        if (node.category != NodeCategory.TRIGGER) return false
+
+        // Manual or Simulator overrides
+        if (source == "Simulator" && node.type == NodeType.TRIGGER_SIMULATOR) return true
+        if (source == "Manual" && node.type == NodeType.TRIGGER_MANUAL) return true
+        if (node.type == NodeType.TRIGGER_WEBHOOK) return true
+
+        return when (node.type) {
+            NodeType.TRIGGER_MONEY_RECEIVED -> transaction.isIncome || transaction.category.equals("income", ignoreCase = true)
+            NodeType.TRIGGER_CARD_SPEND -> transaction.isSpend && transaction.decline_reason.isNullOrBlank()
+            NodeType.TRIGGER_TRANSFER_OUT -> transaction.isSpend && (
+                transaction.category.contains("transfer", ignoreCase = true) ||
+                transaction.description.contains("transfer", ignoreCase = true) ||
+                transaction.description.contains("sent to", ignoreCase = true)
+            )
+            NodeType.TRIGGER_DIRECT_DEBIT -> transaction.category.equals("bills", ignoreCase = true) ||
+                transaction.description.contains("direct debit", ignoreCase = true) ||
+                transaction.description.contains("standing order", ignoreCase = true)
+            NodeType.TRIGGER_POT_MOVE -> transaction.category.equals("pot", ignoreCase = true) ||
+                transaction.description.contains("pot", ignoreCase = true) ||
+                transaction.description.contains("round up", ignoreCase = true)
+            NodeType.TRIGGER_DECLINE -> !transaction.decline_reason.isNullOrBlank() ||
+                transaction.description.contains("declined", ignoreCase = true)
+            NodeType.TRIGGER_FOREIGN_CURRENCY -> !transaction.currency.equals("GBP", ignoreCase = true) ||
+                transaction.metadata.containsKey("local_currency")
+            NodeType.TRIGGER_LOW_BALANCE -> transaction.metadata.containsKey("low_balance_triggered") || transaction.amountAbs < 5000L
+            NodeType.TRIGGER_POLL -> source == "Poller"
+            NodeType.TRIGGER_SIMULATOR -> source == "Simulator"
+            NodeType.TRIGGER_MANUAL -> source == "Manual"
+            else -> false
         }
     }
 

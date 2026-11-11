@@ -43,10 +43,18 @@ fun AddNodeSheet(
 
     val allTemplates = remember {
         listOf(
-            // Triggers
-            NodeTemplateItem(NodeType.TRIGGER_WEBHOOK, NodeCategory.TRIGGER, "Monzo Webhook", "Fires instantly on transaction.created events", Icons.Default.CloudSync),
-            NodeTemplateItem(NodeType.TRIGGER_SIMULATOR, NodeCategory.TRIGGER, "Webhook Simulator", "Test lab with presets (Coffee, Salary, Grocery)", Icons.Default.Science),
-            NodeTemplateItem(NodeType.TRIGGER_MANUAL, NodeCategory.TRIGGER, "Manual Tap Trigger", "Executes pipeline on manual tap", Icons.Default.PlayArrow),
+            // Dedicated Monzo Triggers
+            NodeTemplateItem(NodeType.TRIGGER_MONEY_RECEIVED, NodeCategory.TRIGGER, "Money Received", "Fires when salary, bank transfer in, or refund arrives (+£)", Icons.Default.MonetizationOn),
+            NodeTemplateItem(NodeType.TRIGGER_CARD_SPEND, NodeCategory.TRIGGER, "Card Purchase", "Fires on contactless, Apple/Google Pay, or card spend (-£)", Icons.Default.CreditCard),
+            NodeTemplateItem(NodeType.TRIGGER_TRANSFER_OUT, NodeCategory.TRIGGER, "Send Money / Transfer Out", "Fires when sending bank transfers or paying friends", Icons.Default.Send),
+            NodeTemplateItem(NodeType.TRIGGER_DIRECT_DEBIT, NodeCategory.TRIGGER, "Direct Debit & Bills", "Fires on recurring utility bills and standing orders", Icons.Default.ReceiptLong),
+            NodeTemplateItem(NodeType.TRIGGER_POT_MOVE, NodeCategory.TRIGGER, "Savings Pot Movement", "Fires when funds are deposited or withdrawn from a pot", Icons.Default.Savings),
+            NodeTemplateItem(NodeType.TRIGGER_DECLINE, NodeCategory.TRIGGER, "Declined Transaction", "Fires on payment declines (insufficient funds, frozen card)", Icons.Default.Block),
+            NodeTemplateItem(NodeType.TRIGGER_FOREIGN_CURRENCY, NodeCategory.TRIGGER, "Foreign Currency Spend", "Fires when spending abroad in non-GBP currency", Icons.Default.CurrencyExchange),
+            NodeTemplateItem(NodeType.TRIGGER_LOW_BALANCE, NodeCategory.TRIGGER, "Low Balance Warning", "Fires when account balance drops below threshold", Icons.Default.Warning),
+            NodeTemplateItem(NodeType.TRIGGER_WEBHOOK, NodeCategory.TRIGGER, "All Monzo Transactions", "Catch-all trigger for any raw webhook event", Icons.Default.CloudSync),
+            NodeTemplateItem(NodeType.TRIGGER_SIMULATOR, NodeCategory.TRIGGER, "Webhook Test Simulator", "Offline test lab with presets (Coffee, Salary, Grocery)", Icons.Default.Science),
+            NodeTemplateItem(NodeType.TRIGGER_MANUAL, NodeCategory.TRIGGER, "Manual Run Trigger", "Executes pipeline on manual tap", Icons.Default.PlayArrow),
             NodeTemplateItem(NodeType.TRIGGER_POLL, NodeCategory.TRIGGER, "Periodic Poller", "Checks balance & transactions periodically", Icons.Default.Schedule),
 
             // Monzo Actions

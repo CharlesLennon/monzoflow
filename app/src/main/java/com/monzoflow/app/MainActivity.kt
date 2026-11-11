@@ -26,7 +26,15 @@ import com.monzoflow.app.ui.dialogs.RunInspectorDialog
 import com.monzoflow.app.ui.history.ExecutionHistoryScreen
 import com.monzoflow.app.ui.settings.MonzoSettingsScreen
 import com.monzoflow.app.ui.simulator.WebhookSimulatorScreen
+import com.monzoflow.app.ui.update.UpdateDialog
 import com.monzoflow.app.ui.workflows.WorkflowsScreen
+import com.monzoflow.app.update.UpdateState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.UUID
@@ -49,6 +57,7 @@ class MainActivity : ComponentActivity() {
         val credentialManager = app.credentialManager
         val monzoClient = app.monzoClient
         val workflowExecutor = app.workflowExecutor
+        val updateManager = app.updateManager
 
         // Automatically start embedded webhook server if not already running
         try {
@@ -64,6 +73,13 @@ class MainActivity : ComponentActivity() {
             MonzoFlowTheme {
                 val coroutineScope = rememberCoroutineScope()
                 var currentTab by remember { mutableStateOf(AppTab.CANVAS) }
+
+                val updateState by updateManager.updateState.collectAsState()
+
+                // Check for updates on startup silently
+                LaunchedEffect(Unit) {
+                    updateManager.checkForUpdates(isManual = false)
+                }
 
                 val workflows by db.workflowDao().getAllWorkflows().collectAsState(initial = emptyList())
                 var selectedWorkflowId by remember { mutableStateOf<String?>(null) }
@@ -129,41 +145,122 @@ class MainActivity : ComponentActivity() {
                     ) {
                         when (currentTab) {
                             AppTab.CANVAS -> {
-                                VisualNodeCanvas(
-                                    workflow = currentWorkflow,
-                                    nodes = nodes,
-                                    connections = connections,
-                                    onNodeMoved = { nodeId, newX, newY ->
-                                        coroutineScope.launch {
-                                            db.workflowDao().updateNodePosition(nodeId, newX, newY)
+                                if (workflows.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(BackgroundDark)
+                                            .padding(24.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Card(
+                                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                                            shape = RoundedCornerShape(16.dp),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark),
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(24.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Hub,
+                                                    contentDescription = null,
+                                                    tint = MonzoCoral,
+                                                    modifier = Modifier.size(48.dp)
+                                                )
+                                                Text(
+                                                    text = "CANVAS EMPTY",
+                                                    color = TextPrimary,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 16.sp,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                                Text(
+                                                    text = "No automation workflows created yet. Start with a blank canvas to build your custom Monzo personal trigger pipeline.",
+                                                    color = TextSecondary,
+                                                    fontSize = 12.sp,
+                                                    textAlign = TextAlign.Center,
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Button(
+                                                    onClick = {
+                                                        coroutineScope.launch {
+                                                            val newWf = Workflow(
+                                                                id = "wf_${UUID.randomUUID().toString().take(8)}",
+                                                                name = "New Automation Pipeline",
+                                                                description = "Custom visual workflow",
+                                                                active = true
+                                                            )
+                                                            val startTrigger = FlowNode(
+                                                                id = "node_trig_${UUID.randomUUID().toString().take(6)}",
+                                                                workflowId = newWf.id,
+                                                                type = NodeType.TRIGGER_MONEY_RECEIVED,
+                                                                category = NodeCategory.TRIGGER,
+                                                                title = "Money Received",
+                                                                subtitle = "Salary, BACS, refund",
+                                                                posX = 80f,
+                                                                posY = 140f
+                                                            )
+                                                            db.workflowDao().insertWorkflow(newWf)
+                                                            db.workflowDao().insertNode(startTrigger)
+                                                            selectedWorkflowId = newWf.id
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = MonzoCoral),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "CREATE FIRST WORKFLOW",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        fontSize = 12.sp
+                                                    )
+                                                }
+                                            }
                                         }
-                                    },
-                                    onNodeSelected = { node ->
-                                        inspectingNode = node
-                                    },
-                                    onAddNodeClick = { showAddNodeSheet = true },
-                                    onConnectNodes = { fromNodeId, fromPortId, toNodeId, toPortId ->
-                                        coroutineScope.launch {
-                                            val conn = FlowConnection(
-                                                id = "conn_${UUID.randomUUID().toString().take(8)}",
-                                                workflowId = currentWorkflow.id,
-                                                fromNodeId = fromNodeId,
-                                                fromPortId = fromPortId,
-                                                toNodeId = toNodeId,
-                                                toPortId = toPortId
-                                            )
-                                            db.workflowDao().insertConnection(conn)
-                                        }
-                                    },
-                                    onDeleteConnection = { connId ->
-                                        coroutineScope.launch {
-                                            db.workflowDao().deleteConnection(connId)
-                                        }
-                                    },
-                                    onTestRunClick = {
-                                        currentTab = AppTab.SIMULATOR
                                     }
-                                )
+                                } else {
+                                    VisualNodeCanvas(
+                                        workflow = currentWorkflow,
+                                        nodes = nodes,
+                                        connections = connections,
+                                        onNodeMoved = { nodeId, newX, newY ->
+                                            coroutineScope.launch {
+                                                db.workflowDao().updateNodePosition(nodeId, newX, newY)
+                                            }
+                                        },
+                                        onNodeSelected = { node ->
+                                            inspectingNode = node
+                                        },
+                                        onAddNodeClick = { showAddNodeSheet = true },
+                                        onConnectNodes = { fromNodeId, fromPortId, toNodeId, toPortId ->
+                                            coroutineScope.launch {
+                                                val conn = FlowConnection(
+                                                    id = "conn_${UUID.randomUUID().toString().take(8)}",
+                                                    workflowId = currentWorkflow.id,
+                                                    fromNodeId = fromNodeId,
+                                                    fromPortId = fromPortId,
+                                                    toNodeId = toNodeId,
+                                                    toPortId = toPortId
+                                                )
+                                                db.workflowDao().insertConnection(conn)
+                                            }
+                                        },
+                                        onDeleteConnection = { connId ->
+                                            coroutineScope.launch {
+                                                db.workflowDao().deleteConnection(connId)
+                                            }
+                                        },
+                                        onTestRunClick = {
+                                            currentTab = AppTab.SIMULATOR
+                                        }
+                                    )
+                                }
                             }
 
                             AppTab.WORKFLOWS -> {
@@ -189,10 +286,10 @@ class MainActivity : ComponentActivity() {
                                             val startTrigger = FlowNode(
                                                 id = "node_trig_${UUID.randomUUID().toString().take(6)}",
                                                 workflowId = newWf.id,
-                                                type = NodeType.TRIGGER_WEBHOOK,
+                                                type = NodeType.TRIGGER_MONEY_RECEIVED,
                                                 category = NodeCategory.TRIGGER,
-                                                title = "Monzo Webhook",
-                                                subtitle = "Live transactions",
+                                                title = "Money Received",
+                                                subtitle = "Salary, BACS, refund",
                                                 posX = 80f,
                                                 posY = 140f
                                             )
@@ -244,7 +341,8 @@ class MainActivity : ComponentActivity() {
                             AppTab.SETTINGS -> {
                                 MonzoSettingsScreen(
                                     credentialManager = credentialManager,
-                                    monzoClient = monzoClient
+                                    monzoClient = monzoClient,
+                                    updateManager = updateManager
                                 )
                             }
                         }
@@ -297,6 +395,15 @@ class MainActivity : ComponentActivity() {
                             RunInspectorDialog(
                                 log = log,
                                 onDismiss = { viewingExecutionLog = null }
+                            )
+                        }
+
+                        // App Self-Updater Dialog
+                        if (updateState !is UpdateState.Idle) {
+                            UpdateDialog(
+                                updateState = updateState,
+                                updateManager = updateManager,
+                                onDismiss = { updateManager.dismissUpdate() }
                             )
                         }
                     }

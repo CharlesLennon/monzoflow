@@ -51,6 +51,14 @@ fun NodeCard(
 
     val icon: ImageVector = when (node.type) {
         NodeType.TRIGGER_WEBHOOK -> Icons.Default.CloudSync
+        NodeType.TRIGGER_MONEY_RECEIVED -> Icons.Default.MonetizationOn
+        NodeType.TRIGGER_CARD_SPEND -> Icons.Default.CreditCard
+        NodeType.TRIGGER_TRANSFER_OUT -> Icons.Default.Send
+        NodeType.TRIGGER_DIRECT_DEBIT -> Icons.Default.ReceiptLong
+        NodeType.TRIGGER_POT_MOVE -> Icons.Default.Savings
+        NodeType.TRIGGER_DECLINE -> Icons.Default.Block
+        NodeType.TRIGGER_FOREIGN_CURRENCY -> Icons.Default.CurrencyExchange
+        NodeType.TRIGGER_LOW_BALANCE -> Icons.Default.Warning
         NodeType.TRIGGER_SIMULATOR -> Icons.Default.Science
         NodeType.TRIGGER_POLL -> Icons.Default.Schedule
         NodeType.TRIGGER_MANUAL -> Icons.Default.PlayArrow

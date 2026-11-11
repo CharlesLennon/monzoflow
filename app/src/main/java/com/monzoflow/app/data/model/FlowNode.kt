@@ -14,8 +14,16 @@ enum class NodeCategory {
 }
 
 enum class NodeType {
-    // Triggers
-    TRIGGER_WEBHOOK,              // Monzo transaction.created webhook
+    // Dedicated Monzo Personal Triggers
+    TRIGGER_WEBHOOK,              // All Monzo transactions (raw webhook)
+    TRIGGER_MONEY_RECEIVED,       // Money Received / Inbound Transfer / Salary / Refunds
+    TRIGGER_CARD_SPEND,           // Card Purchase / Contactless / Apple Pay / POS Spend
+    TRIGGER_TRANSFER_OUT,         // Outbound Bank Transfer / Send Money
+    TRIGGER_DIRECT_DEBIT,         // Direct Debit / Standing Order / Subscriptions
+    TRIGGER_POT_MOVE,             // Savings Pot Deposit or Withdrawal
+    TRIGGER_DECLINE,              // Declined Transaction (Insufficient funds, card frozen)
+    TRIGGER_FOREIGN_CURRENCY,     // Foreign Currency Spend Abroad (EUR, USD, etc.)
+    TRIGGER_LOW_BALANCE,          // Low Account Balance Alert (Threshold buffer)
     TRIGGER_SIMULATOR,            // Test trigger with preset / custom mock
     TRIGGER_POLL,                 // Periodic polling of balance / transactions
     TRIGGER_MANUAL,               // Manual 'Run Now' tap
@@ -112,6 +120,14 @@ data class FlowNode(
         fun defaultInputs(type: NodeType): List<NodePort> {
             return when (type) {
                 NodeType.TRIGGER_WEBHOOK,
+                NodeType.TRIGGER_MONEY_RECEIVED,
+                NodeType.TRIGGER_CARD_SPEND,
+                NodeType.TRIGGER_TRANSFER_OUT,
+                NodeType.TRIGGER_DIRECT_DEBIT,
+                NodeType.TRIGGER_POT_MOVE,
+                NodeType.TRIGGER_DECLINE,
+                NodeType.TRIGGER_FOREIGN_CURRENCY,
+                NodeType.TRIGGER_LOW_BALANCE,
                 NodeType.TRIGGER_SIMULATOR,
                 NodeType.TRIGGER_POLL,
                 NodeType.TRIGGER_MANUAL -> emptyList() // Triggers have no inputs

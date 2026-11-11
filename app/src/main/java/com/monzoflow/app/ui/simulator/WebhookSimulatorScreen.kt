@@ -36,7 +36,9 @@ data class SimulatorPreset(
     val amountPounds: Double,
     val isSpend: Boolean,
     val category: String,
-    val notes: String = ""
+    val notes: String = "",
+    val currency: String = "GBP",
+    val declineReason: String? = null
 )
 
 @Composable
@@ -49,11 +51,13 @@ fun WebhookSimulatorScreen(
     val presets = remember {
         listOf(
             SimulatorPreset("Pret Coffee", "☕", "Pret A Manger", 3.60, true, "eating_out", "Morning flat white"),
-            SimulatorPreset("Starbucks", "☕", "Starbucks Coffee", 4.25, true, "eating_out", "Caramel Macchiato"),
-            SimulatorPreset("Tesco Groceries", "🛒", "Tesco Express", 28.50, true, "groceries", "Weekly essentials"),
-            SimulatorPreset("Monthly Salary", "💰", "ACME Corporation", 2850.00, false, "income", "November Salary"),
-            SimulatorPreset("Spotify", "🎵", "Spotify UK", 10.99, true, "entertainment", "Monthly subscription"),
-            SimulatorPreset("TFL Underground", "🚇", "Transport for London", 3.40, true, "transport", "Zone 1-2 commute")
+            SimulatorPreset("Money Received", "💰", "ACME Corp (Salary)", 2850.00, false, "income", "Faster Payments In: Salary"),
+            SimulatorPreset("Transfer Out", "💸", "Transfer to John Doe", 45.00, true, "transfers", "Sent via Monzo P2P Transfer"),
+            SimulatorPreset("Direct Debit", "📄", "British Gas Utility", 85.20, true, "bills", "Direct Debit payment"),
+            SimulatorPreset("Card Declined", "❌", "ASOS Online Store", 62.00, true, "shopping", "Payment declined", declineReason = "INSUFFICIENT_FUNDS"),
+            SimulatorPreset("Paris Bistro", "🌍", "Le Petit Café Paris", 24.50, true, "eating_out", "Foreign card spend in Paris", currency = "EUR"),
+            SimulatorPreset("Pot Sweep", "🏺", "Rainy Day Pot", 15.00, true, "pot", "Transferred to savings pot"),
+            SimulatorPreset("Tesco Express", "🛒", "Tesco Express", 18.50, true, "groceries", "Weekly groceries")
         )
     }
 
@@ -62,6 +66,8 @@ fun WebhookSimulatorScreen(
     var isSpend by remember { mutableStateOf(true) }
     var category by remember { mutableStateOf("eating_out") }
     var notes by remember { mutableStateOf("Morning flat white") }
+    var currency by remember { mutableStateOf("GBP") }
+    var declineReason by remember { mutableStateOf<String?>(null) }
 
     var isRunning by remember { mutableStateOf(false) }
     var lastExecutedLogs by remember { mutableStateOf<List<ExecutionLog>>(emptyList()) }
@@ -121,6 +127,8 @@ fun WebhookSimulatorScreen(
                         isSpend = preset.isSpend
                         category = preset.category
                         notes = preset.notes
+                        currency = preset.currency
+                        declineReason = preset.declineReason
                     }
                 ) {
                     Row(
@@ -233,10 +241,11 @@ fun WebhookSimulatorScreen(
                         val mockTx = MonzoTransaction(
                             id = "sim_tx_${UUID.randomUUID().toString().take(8)}",
                             amount = finalAmountPence,
-                            currency = "GBP",
+                            currency = currency,
                             description = merchantName,
                             notes = notes,
                             category = category,
+                            decline_reason = declineReason,
                             created = "2026-11-11T07:30:00Z",
                             merchant = MonzoMerchant(
                                 id = "merch_sim",
