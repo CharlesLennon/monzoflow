@@ -10,9 +10,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,14 +34,18 @@ import com.monzoflow.app.data.model.FlowNode
 import com.monzoflow.app.data.model.NodeCategory
 import com.monzoflow.app.data.model.NodeType
 import com.monzoflow.app.theme.*
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
 fun NodeCard(
     node: FlowNode,
     isSelected: Boolean,
+    isBeingDragged: Boolean = false,
     onTap: () -> Unit,
+    onDragStart: () -> Unit = {},
     onDrag: (dragAmountX: Float, dragAmountY: Float) -> Unit,
+    onDragEnd: () -> Unit = {},
     onPortDragStart: (portId: String, isInput: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
@@ -77,43 +86,81 @@ fun NodeCard(
         NodeType.NOTIFY_ANDROID -> Icons.Default.Notifications
     }
 
+    var totalDragDistance by remember { mutableFloatStateOf(0f) }
+
     Box(
         modifier = modifier
             .width(220.dp)
-            .shadow(elevation = if (isSelected) 10.dp else 4.dp, shape = RoundedCornerShape(12.dp))
+            .shadow(
+                elevation = when {
+                    isBeingDragged -> 16.dp
+                    isSelected -> 8.dp
+                    else -> 4.dp
+                },
+                shape = RoundedCornerShape(12.dp)
+            )
             .clip(RoundedCornerShape(12.dp))
             .background(SurfaceDark)
             .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) categoryColor else SurfaceBorder,
+                width = if (isBeingDragged || isSelected) 2.dp else 1.dp,
+                color = when {
+                    isBeingDragged -> MintGreen
+                    isSelected -> categoryColor
+                    else -> SurfaceBorder
+                },
                 shape = RoundedCornerShape(12.dp)
             )
             .pointerInput(node.id) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    onDrag(dragAmount.x, dragAmount.y)
-                }
+                detectDragGestures(
+                    onDragStart = {
+                        totalDragDistance = 0f
+                        onDragStart()
+                    },
+                    onDragEnd = {
+                        if (totalDragDistance < 10f) {
+                            onTap()
+                        }
+                        onDragEnd()
+                    },
+                    onDragCancel = {
+                        onDragEnd()
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDragDistance += (abs(dragAmount.x) + abs(dragAmount.y))
+                        onDrag(dragAmount.x, dragAmount.y)
+                    }
+                )
             }
-            .clickable { onTap() }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Header Bar
+            // Header Bar (Tactile Grip Handle, Category Pill & Settings Icon)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(categoryColor.copy(alpha = 0.18f))
+                    .background(
+                        if (isBeingDragged) categoryColor.copy(alpha = 0.32f) else categoryColor.copy(alpha = 0.18f)
+                    )
                     .border(
                         width = 1.dp,
-                        color = categoryColor.copy(alpha = 0.35f),
+                        color = if (isBeingDragged) MintGreen.copy(alpha = 0.5f) else categoryColor.copy(alpha = 0.35f),
                         shape = RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)
                     )
-                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                // Tactile Drag Grip Indicator
+                Icon(
+                    imageVector = Icons.Default.DragHandle,
+                    contentDescription = "Drag Grip Handle",
+                    tint = if (isBeingDragged) MintGreen else TextSecondary.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp)
+                )
+
                 Box(
                     modifier = Modifier
-                        .size(24.dp)
+                        .size(22.dp)
                         .clip(CircleShape)
                         .background(categoryColor)
                         .padding(3.dp),
@@ -123,13 +170,13 @@ fun NodeCard(
                         imageVector = icon,
                         contentDescription = null,
                         tint = CanvasBackground,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(13.dp)
                     )
                 }
 
                 Text(
                     text = node.category.name.replace("_", " "),
-                    color = categoryColor,
+                    color = if (isBeingDragged) MintGreen else categoryColor,
                     fontSize = 8.5.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
@@ -138,12 +185,25 @@ fun NodeCard(
 
                 Spacer(modifier = Modifier.weight(1f))
 
+                // Configure / Settings Gear Icon
+                IconButton(
+                    onClick = onTap,
+                    modifier = Modifier.size(22.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Configure Node",
+                        tint = if (isSelected) categoryColor else TextSecondary,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+
                 // Status Ring
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(StatusSuccess)
+                        .background(if (isBeingDragged) MintGreen else StatusSuccess)
                 )
             }
 

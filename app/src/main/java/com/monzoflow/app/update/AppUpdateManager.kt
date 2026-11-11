@@ -55,7 +55,7 @@ class AppUpdateManager(private val context: Context) {
         get() = try {
             BuildConfig.VERSION_NAME
         } catch (e: Throwable) {
-            "1.0.1"
+            "1.0.2"
         }
 
     val currentVersionCode: Int

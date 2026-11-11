@@ -49,8 +49,23 @@ fun VisualNodeCanvas(
     var scale by remember { mutableFloatStateOf(1f) }
 
     var selectedNodeId by remember { mutableStateOf<String?>(null) }
+    var draggingNodeId by remember { mutableStateOf<String?>(null) }
     var connectingFromNodeId by remember { mutableStateOf<String?>(null) }
     var connectingFromPortId by remember { mutableStateOf<String?>(null) }
+
+    // In-memory node positions for instant 60/120fps dragging with zero database disk I/O lag
+    val nodePositions = remember { mutableStateMapOf<String, Offset>() }
+
+    // Sync in-memory positions from database nodes when not actively dragging
+    LaunchedEffect(nodes) {
+        val currentIds = nodes.map { it.id }.toSet()
+        nodePositions.keys.retainAll(currentIds)
+        for (node in nodes) {
+            if (!nodePositions.containsKey(node.id) || draggingNodeId != node.id) {
+                nodePositions[node.id] = Offset(node.posX, node.posY)
+            }
+        }
+    }
 
     // Pulse animation along active wires
     val infiniteTransition = rememberInfiniteTransition(label = "wire_pulse")
@@ -70,11 +85,13 @@ fun VisualNodeCanvas(
         modifier = modifier
             .fillMaxSize()
             .background(CanvasBackground)
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(0.4f, 2.2f)
-                    panX += pan.x
-                    panY += pan.y
+            .pointerInput(draggingNodeId) {
+                if (draggingNodeId == null) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(0.4f, 2.2f)
+                        panX += pan.x
+                        panY += pan.y
+                    }
                 }
             }
     ) {
@@ -99,20 +116,23 @@ fun VisualNodeCanvas(
                 x += gridSpacing
             }
 
-            // Draw Cubic Bézier Wires
+            // Draw Cubic Bézier Wires using real-time live in-memory positions
             for (conn in connections) {
                 val fromNode = nodeMap[conn.fromNodeId]
                 val toNode = nodeMap[conn.toNodeId]
                 if (fromNode != null && toNode != null) {
+                    val fromPos = nodePositions[fromNode.id] ?: Offset(fromNode.posX, fromNode.posY)
+                    val toPos = nodePositions[toNode.id] ?: Offset(toNode.posX, toNode.posY)
+
                     // Node card width ~220dp, height ~95dp
                     val cardWidthPx = 220f * density * scale
                     val cardHeightPx = 95f * density * scale
 
-                    val startScreenX = (fromNode.posX * scale) + panX + cardWidthPx - (10f * scale)
-                    val startScreenY = (fromNode.posY * scale) + panY + (cardHeightPx * 0.85f)
+                    val startScreenX = (fromPos.x * scale) + panX + cardWidthPx - (10f * scale)
+                    val startScreenY = (fromPos.y * scale) + panY + (cardHeightPx * 0.85f)
 
-                    val endScreenX = (toNode.posX * scale) + panX + (10f * scale)
-                    val endScreenY = (toNode.posY * scale) + panY + (cardHeightPx * 0.85f)
+                    val endScreenX = (toPos.x * scale) + panX + (10f * scale)
+                    val endScreenY = (toPos.y * scale) + panY + (cardHeightPx * 0.85f)
 
                     ConnectionWire.drawWire(
                         drawScope = this,
@@ -129,12 +149,14 @@ fun VisualNodeCanvas(
         // 2. Interactive Node Cards Layer
         Box(modifier = Modifier.fillMaxSize()) {
             for (node in nodes) {
-                val screenX = ((node.posX * scale) + panX).roundToInt()
-                val screenY = ((node.posY * scale) + panY).roundToInt()
+                val currentPos = nodePositions[node.id] ?: Offset(node.posX, node.posY)
+                val screenX = ((currentPos.x * scale) + panX).roundToInt()
+                val screenY = ((currentPos.y * scale) + panY).roundToInt()
 
                 NodeCard(
                     node = node,
                     isSelected = selectedNodeId == node.id,
+                    isBeingDragged = draggingNodeId == node.id,
                     onTap = {
                         if (connectingFromNodeId != null && connectingFromNodeId != node.id) {
                             // Finish connection
@@ -146,10 +168,24 @@ fun VisualNodeCanvas(
                             onNodeSelected(node)
                         }
                     },
+                    onDragStart = {
+                        draggingNodeId = node.id
+                        selectedNodeId = node.id
+                    },
                     onDrag = { dragX, dragY ->
-                        val newX = node.posX + (dragX / scale)
-                        val newY = node.posY + (dragY / scale)
-                        onNodeMoved(node.id, newX, newY)
+                        val current = nodePositions[node.id] ?: Offset(node.posX, node.posY)
+                        val updated = Offset(
+                            x = current.x + (dragX / scale),
+                            y = current.y + (dragY / scale)
+                        )
+                        nodePositions[node.id] = updated
+                    },
+                    onDragEnd = {
+                        val finalPos = nodePositions[node.id]
+                        draggingNodeId = null
+                        if (finalPos != null) {
+                            onNodeMoved(node.id, finalPos.x, finalPos.y)
+                        }
                     },
                     onPortDragStart = { portId, isInput ->
                         if (!isInput) {
