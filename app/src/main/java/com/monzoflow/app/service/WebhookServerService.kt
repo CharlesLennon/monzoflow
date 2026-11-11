@@ -27,7 +27,7 @@ import timber.log.Timber
 class WebhookServerService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var server: EmbeddedServer<*, *>? = null
+    private var server: ApplicationEngine? = null
 
     private val json = Json {
         ignoreUnknownKeys = true
