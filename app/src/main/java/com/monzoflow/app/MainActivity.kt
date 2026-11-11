@@ -149,14 +149,14 @@ class MainActivity : ComponentActivity() {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(BackgroundDark)
+                                            .background(CanvasBackground)
                                             .padding(24.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Card(
                                             colors = CardDefaults.cardColors(containerColor = SurfaceDark),
                                             shape = RoundedCornerShape(16.dp),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorder),
                                             modifier = Modifier.fillMaxWidth().padding(16.dp)
                                         ) {
                                             Column(
