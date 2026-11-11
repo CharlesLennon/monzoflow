@@ -68,6 +68,7 @@ fun WebhookSimulatorScreen(
     var notes by remember { mutableStateOf("Morning flat white") }
     var currency by remember { mutableStateOf("GBP") }
     var declineReason by remember { mutableStateOf<String?>(null) }
+    var isSettled by remember { mutableStateOf(true) }
 
     var isRunning by remember { mutableStateOf(false) }
     var lastExecutedLogs by remember { mutableStateOf<List<ExecutionLog>>(emptyList()) }
@@ -199,12 +200,31 @@ fun WebhookSimulatorScreen(
                             .clickable { isSpend = !isSpend }
                     ) {
                         Text(
-                            text = if (isSpend) "SPEND (-)" else "INCOME (+)",
+                            text = if (isSpend) "DEBIT (-)" else "CREDIT (+)",
                             color = if (isSpend) MonzoCoral else MintGreen,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+                        )
+                    }
+
+                    // Settled vs Pending Toggle
+                    Surface(
+                        color = if (isSettled) MintGreen.copy(alpha = 0.20f) else TextAccent.copy(alpha = 0.20f),
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSettled) MintGreen else TextAccent),
+                        modifier = Modifier
+                            .align(Alignment.CenterVertically)
+                            .clickable { isSettled = !isSettled }
+                    ) {
+                        Text(
+                            text = if (isSettled) "SETTLED" else "PENDING",
+                            color = if (isSettled) MintGreen else TextAccent,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
                         )
                     }
                 }
@@ -247,6 +267,7 @@ fun WebhookSimulatorScreen(
                             category = category,
                             decline_reason = declineReason,
                             created = "2026-11-11T07:30:00Z",
+                            settled = if (isSettled) "2026-11-11T12:00:00Z" else null,
                             merchant = MonzoMerchant(
                                 id = "merch_sim",
                                 name = merchantName,

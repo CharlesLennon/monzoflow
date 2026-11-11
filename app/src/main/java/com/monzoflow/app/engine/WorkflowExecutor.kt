@@ -384,6 +384,19 @@ class WorkflowExecutor(
         transaction: MonzoTransaction,
         context: Map<String, Any>
     ): Boolean {
+        // Transaction direction (Debit vs Credit)
+        when (config.filterTransactionType.uppercase()) {
+            "DEBIT" -> if (!transaction.isSpend) return false
+            "CREDIT" -> if (!transaction.isIncome) return false
+        }
+
+        // Transaction status (Pending vs Settled vs Declined)
+        when (config.filterTransactionStatus.uppercase()) {
+            "PENDING" -> if (!transaction.settled.isNullOrBlank() || !transaction.decline_reason.isNullOrBlank()) return false
+            "SETTLED", "COMPLETED" -> if (transaction.settled.isNullOrBlank()) return false
+            "DECLINED" -> if (transaction.decline_reason.isNullOrBlank()) return false
+        }
+
         // Category check
         if (config.filterCategory.isNotBlank() && !config.filterCategory.equals("all", ignoreCase = true)) {
             if (!transaction.category.equals(config.filterCategory, ignoreCase = true)) {
@@ -393,8 +406,17 @@ class WorkflowExecutor(
 
         // Merchant check
         if (config.filterMerchant.isNotBlank()) {
-            val merchantMatch = transaction.displayTitle.contains(config.filterMerchant, ignoreCase = true)
+            val merchantMatch = transaction.displayTitle.contains(config.filterMerchant, ignoreCase = true) ||
+                transaction.description.contains(config.filterMerchant, ignoreCase = true)
             if (!merchantMatch) return false
+        }
+
+        // Currency check
+        when (config.filterCurrency.uppercase()) {
+            "GBP" -> if (!transaction.currency.equals("GBP", ignoreCase = true)) return false
+            "FOREIGN" -> if (transaction.currency.equals("GBP", ignoreCase = true)) return false
+            "EUR" -> if (!transaction.currency.equals("EUR", ignoreCase = true)) return false
+            "USD" -> if (!transaction.currency.equals("USD", ignoreCase = true)) return false
         }
 
         // Amount checks (in pence)
@@ -450,9 +472,50 @@ class WorkflowExecutor(
         // Manual or Simulator overrides
         if (source == "Simulator" && node.type == NodeType.TRIGGER_SIMULATOR) return true
         if (source == "Manual" && node.type == NodeType.TRIGGER_MANUAL) return true
-        if (node.type == NodeType.TRIGGER_WEBHOOK) return true
 
+        val config = node.config
+
+        // 1. Transaction Direction Filter (Debit vs Credit)
+        when (config.filterTransactionType.uppercase()) {
+            "DEBIT" -> if (!transaction.isSpend) return false
+            "CREDIT" -> if (!transaction.isIncome) return false
+        }
+
+        // 2. Transaction Status / Settlement Filter (Pending vs Settled vs Declined)
+        when (config.filterTransactionStatus.uppercase()) {
+            "PENDING" -> if (!transaction.settled.isNullOrBlank() || !transaction.decline_reason.isNullOrBlank()) return false
+            "SETTLED", "COMPLETED" -> if (transaction.settled.isNullOrBlank()) return false
+            "DECLINED" -> if (transaction.decline_reason.isNullOrBlank()) return false
+        }
+
+        // 3. Category Filter
+        if (config.filterCategory.isNotBlank() && !config.filterCategory.equals("all", ignoreCase = true)) {
+            if (!transaction.category.contains(config.filterCategory, ignoreCase = true)) return false
+        }
+
+        // 4. Merchant Filter
+        if (config.filterMerchant.isNotBlank()) {
+            val merchantMatch = transaction.displayTitle.contains(config.filterMerchant, ignoreCase = true) ||
+                transaction.description.contains(config.filterMerchant, ignoreCase = true)
+            if (!merchantMatch) return false
+        }
+
+        // 5. Amount Min / Max Filter (in pence)
+        val amountAbs = transaction.amountAbs
+        if (config.filterMinAmountPence > 0L && amountAbs < config.filterMinAmountPence) return false
+        if (config.filterMaxAmountPence < Long.MAX_VALUE && amountAbs > config.filterMaxAmountPence) return false
+
+        // 6. Currency Filter
+        when (config.filterCurrency.uppercase()) {
+            "GBP" -> if (!transaction.currency.equals("GBP", ignoreCase = true)) return false
+            "FOREIGN" -> if (transaction.currency.equals("GBP", ignoreCase = true)) return false
+            "EUR" -> if (!transaction.currency.equals("EUR", ignoreCase = true)) return false
+            "USD" -> if (!transaction.currency.equals("USD", ignoreCase = true)) return false
+        }
+
+        // Node type-specific semantic rules
         return when (node.type) {
+            NodeType.TRIGGER_WEBHOOK -> true // Raw Webhook with user-configured filters applied!
             NodeType.TRIGGER_MONEY_RECEIVED -> transaction.isIncome || transaction.category.equals("income", ignoreCase = true)
             NodeType.TRIGGER_CARD_SPEND -> transaction.isSpend && transaction.decline_reason.isNullOrBlank()
             NodeType.TRIGGER_TRANSFER_OUT -> transaction.isSpend && (

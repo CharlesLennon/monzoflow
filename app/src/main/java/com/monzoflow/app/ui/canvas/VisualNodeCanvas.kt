@@ -153,20 +153,33 @@ fun VisualNodeCanvas(
                 val screenX = ((currentPos.x * scale) + panX).roundToInt()
                 val screenY = ((currentPos.y * scale) + panY).roundToInt()
 
+                val isSource = connectingFromNodeId == node.id
+                val isTarget = connectingFromNodeId != null && connectingFromNodeId != node.id
+
                 NodeCard(
                     node = node,
                     isSelected = selectedNodeId == node.id,
                     isBeingDragged = draggingNodeId == node.id,
+                    isConnectingSource = isSource,
+                    isConnectTarget = isTarget,
                     onTap = {
                         if (connectingFromNodeId != null && connectingFromNodeId != node.id) {
                             // Finish connection
                             onConnectNodes(connectingFromNodeId!!, connectingFromPortId ?: "out_default", node.id, "in_default")
                             connectingFromNodeId = null
                             connectingFromPortId = null
+                        } else if (connectingFromNodeId == node.id) {
+                            // Cancel wiring if tapping source node again
+                            connectingFromNodeId = null
+                            connectingFromPortId = null
                         } else {
                             selectedNodeId = node.id
                             onNodeSelected(node)
                         }
+                    },
+                    onStartWiring = { portId ->
+                        connectingFromNodeId = node.id
+                        connectingFromPortId = portId
                     },
                     onDragStart = {
                         draggingNodeId = node.id
@@ -257,26 +270,51 @@ fun VisualNodeCanvas(
             }
         }
 
-        // 4. Connecting Helper Banner (Active Wire Mode)
+        // 4. Connecting Helper Banner (Active Wire Mode) - Positioned at Top for Visibility
         if (connectingFromNodeId != null) {
+            val sourceNode = nodeMap[connectingFromNodeId]
             Surface(
-                color = LogicColor.copy(alpha = 0.95f),
-                shape = RoundedCornerShape(8.dp),
+                color = SurfaceElevated.copy(alpha = 0.96f),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, MintGreen),
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 80.dp)
+                    .align(Alignment.TopCenter)
+                    .padding(top = 64.dp)
+                    .padding(horizontal = 16.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(text = "Wiring mode: Tap target node to connect wire", color = CanvasBackground, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(MintGreen)
+                    )
+                    Column {
+                        Text(
+                            text = "WIRING MODE ACTIVE",
+                            color = MintGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "From: ${sourceNode?.title ?: "Node"} ➔ Tap destination node to link",
+                            color = TextPrimary,
+                            fontSize = 10.sp
+                        )
+                    }
                     IconButton(
-                        onClick = { connectingFromNodeId = null },
-                        modifier = Modifier.size(20.dp)
+                        onClick = {
+                            connectingFromNodeId = null
+                            connectingFromPortId = null
+                        },
+                        modifier = Modifier.size(24.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = "Cancel", tint = CanvasBackground)
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Cancel Wiring", tint = TextSecondary, modifier = Modifier.size(16.dp))
                     }
                 }
             }

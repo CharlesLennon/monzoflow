@@ -59,12 +59,16 @@ data class NodePort(
 
 @Serializable
 data class NodeConfig(
-    // Filter parameters
+    // Transaction Type & Status Filters (Webhook & Logic Filters)
+    val filterTransactionType: String = "ALL",      // ALL, DEBIT, CREDIT
+    val filterTransactionStatus: String = "ALL",    // ALL, PENDING, SETTLED, DECLINED
     val filterCategory: String = "",
     val filterMerchant: String = "",
     val filterMinAmountPence: Long = 0L,
     val filterMaxAmountPence: Long = Long.MAX_VALUE,
     val filterComparison: String = "GREATER_THAN", // GREATER_THAN, LESS_THAN, EQUALS
+    val filterCurrency: String = "ALL",             // ALL, GBP, EUR, USD, FOREIGN
+    val filterDeclineReason: String = "",           // e.g. INSUFFICIENT_FUNDS, CARD_FROZEN
 
     // Monzo Feed Item parameters
     val feedTitleTemplate: String = "MonzoFlow Alert",

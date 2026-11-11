@@ -240,15 +240,19 @@ class MainActivity : ComponentActivity() {
                                         onAddNodeClick = { showAddNodeSheet = true },
                                         onConnectNodes = { fromNodeId, fromPortId, toNodeId, toPortId ->
                                             coroutineScope.launch {
-                                                val conn = FlowConnection(
-                                                    id = "conn_${UUID.randomUUID().toString().take(8)}",
-                                                    workflowId = currentWorkflow.id,
-                                                    fromNodeId = fromNodeId,
-                                                    fromPortId = fromPortId,
-                                                    toNodeId = toNodeId,
-                                                    toPortId = toPortId
-                                                )
-                                                db.workflowDao().insertConnection(conn)
+                                                val existing = connections.any { it.fromNodeId == fromNodeId && it.toNodeId == toNodeId }
+                                                if (!existing) {
+                                                    val conn = FlowConnection(
+                                                        id = "conn_${UUID.randomUUID().toString().take(8)}",
+                                                        workflowId = currentWorkflow.id,
+                                                        fromNodeId = fromNodeId,
+                                                        fromPortId = fromPortId,
+                                                        toNodeId = toNodeId,
+                                                        toPortId = toPortId
+                                                    )
+                                                    db.workflowDao().insertConnection(conn)
+                                                    Toast.makeText(this@MainActivity, "Nodes connected!", Toast.LENGTH_SHORT).show()
+                                                }
                                             }
                                         },
                                         onDeleteConnection = { connId ->
@@ -373,6 +377,8 @@ class MainActivity : ComponentActivity() {
                         inspectingNode?.let { node ->
                             NodeConfigSheet(
                                 node = node,
+                                allNodes = nodes,
+                                connections = connections,
                                 onDismiss = { inspectingNode = null },
                                 onSaveConfig = { updatedNode ->
                                     coroutineScope.launch {
@@ -385,6 +391,29 @@ class MainActivity : ComponentActivity() {
                                         db.workflowDao().deleteNode(nodeId)
                                         db.workflowDao().deleteConnectionsForNode(nodeId)
                                         inspectingNode = null
+                                    }
+                                },
+                                onAddConnection = { toNodeId ->
+                                    coroutineScope.launch {
+                                        val existing = connections.any { it.fromNodeId == node.id && it.toNodeId == toNodeId }
+                                        if (!existing) {
+                                            val conn = FlowConnection(
+                                                id = "conn_${UUID.randomUUID().toString().take(8)}",
+                                                workflowId = currentWorkflow.id,
+                                                fromNodeId = node.id,
+                                                fromPortId = "out_default",
+                                                toNodeId = toNodeId,
+                                                toPortId = "in_default"
+                                            )
+                                            db.workflowDao().insertConnection(conn)
+                                            Toast.makeText(this@MainActivity, "Wire created!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                onDeleteConnection = { connId ->
+                                    coroutineScope.launch {
+                                        db.workflowDao().deleteConnection(connId)
+                                        Toast.makeText(this@MainActivity, "Wire deleted", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             )

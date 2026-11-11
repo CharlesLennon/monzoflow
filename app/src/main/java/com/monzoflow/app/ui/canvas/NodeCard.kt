@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,10 +43,13 @@ fun NodeCard(
     node: FlowNode,
     isSelected: Boolean,
     isBeingDragged: Boolean = false,
+    isConnectingSource: Boolean = false,
+    isConnectTarget: Boolean = false,
     onTap: () -> Unit,
     onDragStart: () -> Unit = {},
     onDrag: (dragAmountX: Float, dragAmountY: Float) -> Unit,
     onDragEnd: () -> Unit = {},
+    onStartWiring: (portId: String) -> Unit = {},
     onPortDragStart: (portId: String, isInput: Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
@@ -94,6 +98,7 @@ fun NodeCard(
             .shadow(
                 elevation = when {
                     isBeingDragged -> 16.dp
+                    isConnectingSource || isConnectTarget -> 10.dp
                     isSelected -> 8.dp
                     else -> 4.dp
                 },
@@ -102,9 +107,11 @@ fun NodeCard(
             .clip(RoundedCornerShape(12.dp))
             .background(SurfaceDark)
             .border(
-                width = if (isBeingDragged || isSelected) 2.dp else 1.dp,
+                width = if (isBeingDragged || isSelected || isConnectingSource || isConnectTarget) 2.dp else 1.dp,
                 color = when {
                     isBeingDragged -> MintGreen
+                    isConnectingSource -> MonzoCoral
+                    isConnectTarget -> MintGreen
                     isSelected -> categoryColor
                     else -> SurfaceBorder
                 },
@@ -154,7 +161,12 @@ fun NodeCard(
                 Icon(
                     imageVector = Icons.Default.DragHandle,
                     contentDescription = "Drag Grip Handle",
-                    tint = if (isBeingDragged) MintGreen else TextSecondary.copy(alpha = 0.7f),
+                    tint = when {
+                        isBeingDragged -> MintGreen
+                        isConnectingSource -> MonzoCoral
+                        isConnectTarget -> MintGreen
+                        else -> TextSecondary.copy(alpha = 0.7f)
+                    },
                     modifier = Modifier.size(16.dp)
                 )
 
@@ -255,7 +267,7 @@ fun NodeCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -263,47 +275,70 @@ fun NodeCard(
                 if (node.inputs.isNotEmpty()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.clickable { onPortDragStart(node.inputs.first().id, true) }
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(TextAccent)
+                                .background(if (isConnectTarget) MintGreen else TextAccent)
                                 .border(1.5.dp, CanvasBackground, CircleShape)
                         )
                         Text(
-                            text = "IN",
-                            color = TextMuted,
-                            fontSize = 8.sp,
+                            text = if (isConnectTarget) "CONNECT ➔" else "IN",
+                            color = if (isConnectTarget) MintGreen else TextMuted,
+                            fontSize = 8.5.sp,
+                            fontWeight = if (isConnectTarget) FontWeight.Bold else FontWeight.Normal,
                             fontFamily = FontFamily.Monospace
                         )
                     }
                 } else {
-                    Spacer(modifier = Modifier.width(1.dp))
+                    Text(
+                        text = "TRIGGER",
+                        color = TextMuted,
+                        fontSize = 8.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
                 }
 
-                // Output Port (Right)
+                // Output Port & Wire Link Button (Right)
                 if (node.outputs.isNotEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.clickable { onPortDragStart(node.outputs.first().id, false) }
+                    val outPort = node.outputs.first()
+                    Surface(
+                        color = if (isConnectingSource) MonzoCoral else categoryColor.copy(alpha = 0.22f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isConnectingSource) MonzoCoral else categoryColor),
+                        modifier = Modifier.pointerInput(outPort.id) {
+                            detectTapGestures {
+                                onStartWiring(outPort.id)
+                            }
+                        }
                     ) {
-                        Text(
-                            text = if (node.type == NodeType.LOGIC_FILTER) "TRUE" else "NEXT",
-                            color = TextMuted,
-                            fontSize = 8.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(categoryColor)
-                                .border(1.5.dp, CanvasBackground, CircleShape)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = "Wire Node",
+                                tint = if (isConnectingSource) Color.White else categoryColor,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = if (isConnectingSource) "WIRING..." else "WIRE OUT",
+                                color = if (isConnectingSource) Color.White else categoryColor,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isConnectingSource) Color.White else categoryColor)
+                            )
+                        }
                     }
                 }
             }
@@ -312,11 +347,36 @@ fun NodeCard(
 }
 
 private fun getConfigSummary(node: FlowNode): String {
+    val typeFilter = when (node.config.filterTransactionType.uppercase()) {
+        "DEBIT" -> "Debit"
+        "CREDIT" -> "Credit"
+        else -> ""
+    }
+    val statusFilter = when (node.config.filterTransactionStatus.uppercase()) {
+        "PENDING" -> "Pending"
+        "SETTLED", "COMPLETED" -> "Settled"
+        "DECLINED" -> "Declined"
+        else -> ""
+    }
+    val filterSummary = listOf(typeFilter, statusFilter).filter { it.isNotBlank() }.joinToString(" • ")
+
     return when (node.type) {
+        NodeType.TRIGGER_WEBHOOK,
+        NodeType.TRIGGER_MONEY_RECEIVED,
+        NodeType.TRIGGER_CARD_SPEND,
+        NodeType.TRIGGER_TRANSFER_OUT,
+        NodeType.TRIGGER_DIRECT_DEBIT,
+        NodeType.TRIGGER_POT_MOVE,
+        NodeType.TRIGGER_DECLINE,
+        NodeType.TRIGGER_FOREIGN_CURRENCY,
+        NodeType.TRIGGER_LOW_BALANCE -> {
+            if (filterSummary.isNotBlank()) filterSummary else ""
+        }
         NodeType.LOGIC_FILTER -> {
             val cat = node.config.filterCategory.takeIf { it.isNotBlank() } ?: "all"
             val amt = if (node.config.filterMinAmountPence > 0) "> £${node.config.filterMinAmountPence / 100}" else ""
-            "Cat: $cat $amt".trim()
+            val base = "Cat: $cat $amt".trim()
+            if (filterSummary.isNotBlank()) "$base ($filterSummary)" else base
         }
         NodeType.TRANSFORM_ROUNDUP -> "Round to £${node.config.roundUpTargetPence / 100}.00"
         NodeType.TRANSFORM_PERCENTAGE -> "${node.config.potPercentage.toInt()}% Allocation"
